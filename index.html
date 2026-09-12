@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMJC 2026 Schedule Dashboard</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for in-browser JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .category-meal { background-color: #fff7ed; border-left: 4px solid #f97316; }
+        .category-game { background-color: #f0fdf4; border-left: 4px solid #22c55e; }
+        .category-outing { background-color: #eff6ff; border-left: 4px solid #3b82f6; }
+        .category-admin { background-color: #f8fafc; border-left: 4px solid #94a3b8; }
+        .category-activity { background-color: #ecfeff; border-left: 4px solid #06b6d4; }
+        .category-default { background-color: #ffffff; border-left: 4px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const formatEuroDate = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        };
+
+        const formatEuroDateLong = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+        };
+
+        const format24Time = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            if (dateString.length <= 10) return 'All Day'; 
+            return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+        };
+
+        const formatDateHeader = (date) => {
+            return date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        };
+
+        const categorizeEvent = (title, desc) => {
+            const text = ((title || "") + " " + (desc || "")).toLowerCase();
+            if (/(breakfast|lunch|dinner|meal|snack)/.test(text)) return { type: 'meal', icon: 'fa-utensils', color: 'text-orange-500' };
+            if (/(game|puzzle|play|tournament|board|blood on the clock)/.test(text)) return { type: 'game', icon: 'fa-gamepad', color: 'text-green-500' };
+            if (/(tour|surf|excursion|trip|beach|walk|hike|castle)/.test(text)) return { type: 'outing', icon: 'fa-map-location-dot', color: 'text-blue-500' };
+            if (/(arrival|check-in|departure|clean|planning|meeting)/.test(text)) return { type: 'admin', icon: 'fa-clipboard-list', color: 'text-slate-500' };
+            if (/(project|workshop|lecture|baking)/.test(text)) return { type: 'activity', icon: 'fa-lightbulb', color: 'text-cyan-500' };
+            return { type: 'default', icon: 'fa-calendar-day', color: 'text-gray-400' };
+        };
+
+        const parseMandatory = (title) => {
+            if (!title) return { isMandatory: false, cleanTitle: 'Untitled Event' };
+            const isMandatory = title.toLowerCase().includes('#mandatory');
+            const cleanTitle = title.replace(/#mandatory/gi, '').trim();
+            return { isMandatory, cleanTitle };
+        };
+
+        // Groups sequential events that share the exact same start time
+        const groupEventsByStartTime = (eventList) => {
+            if (!eventList || eventList.length === 0) return [];
+            const groups = [];
+            let currentGroup = { start: eventList[0].start, events: [eventList[0]] };
+            
+            for (let i = 1; i < eventList.length; i++) {
+                const ev = eventList[i];
+                if (ev.start === currentGroup.start) {
+                    currentGroup.events.push(ev);
+                } else {
+                    groups.push(currentGroup);
+                    currentGroup = { start: ev.start, events: [ev] };
+                }
+            }
+            groups.push(currentGroup);
+            return groups;
+        };
+
+        const mockEvents = [
+            { id: '1', title: 'Arrival & Check-in #mandatory', description: 'Settle into rooms.', location: 'Main Hall', start: '2026-10-23T16:00:00', end: '2026-10-23T18:00:00' },
+            { id: '2', title: 'Welcome Dinner #mandatory', description: 'First meal together.', location: 'Dining Hall', start: '2026-10-23T19:00:00', end: '2026-10-23T20:30:00' },
+            { id: '3', title: 'Breakfast', description: 'Standard breakfast buffet.', location: 'Dining Hall', start: '2026-10-24T08:00:00', end: '2026-10-24T09:00:00' },
+            { id: '4', title: 'Camp Meeting #mandatory', description: 'Morning alignment.', location: 'Room 2', start: '2026-10-24T13:30:00', end: '2026-10-24T14:00:00' },
+            { id: '4b', title: 'Baking Workshop', description: 'Bake cookies (12 people).', location: 'Kitchen 2', start: '2026-10-24T13:30:00', end: '2026-10-24T17:00:00' },
+            { id: '5', title: 'Blood on the Clock Tower Intro', description: 'Come introduce your favorite games.', location: 'Room 4', start: '2026-10-24T14:00:00', end: '2026-10-24T17:30:00' },
+            { id: '6', title: 'Dinner', description: '', location: 'Dining Hall', start: '2026-10-24T18:30:00', end: '2026-10-24T20:00:00' },
+            { id: '7', title: 'Poetry night', description: 'Share your verses.', location: 'Upstairs', start: '2026-10-24T20:00:00', end: '2026-10-24T23:00:00' }
+        ];
+
+        const EventCard = ({ event, currentTime }) => {
+            const { isMandatory, cleanTitle } = parseMandatory(event.title);
+            const category = categorizeEvent(event.title, event.description);
+            const eventPast = new Date(event.end || event.start) < currentTime;
+            
+            return (
+                <div className={`bg-white rounded-xl shadow-sm p-4 transition-all category-${category.type} ${eventPast ? 'grayscale opacity-60' : ''} h-full flex flex-col`}>
+                    <div className="flex flex-col xl:flex-row xl:justify-between xl:items-start gap-2 mb-1">
+                        <div>
+                            <div className="flex items-center space-x-2 mb-1 flex-wrap gap-y-1">
+                                <span className="font-mono font-bold text-gray-700 text-sm">
+                                    {format24Time(event.start)} {event.end ? `- ${format24Time(event.end)}` : ''}
+                                </span>
+                                {isMandatory && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider">Mandatory</span>}
+                                {eventPast && <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-0.5 rounded tracking-wider">DONE</span>}
+                            </div>
+                            <h4 className="text-lg font-bold text-gray-900 flex items-center">
+                                <i className={`fa-solid ${category.icon} ${category.color} mr-2 text-base`}></i>
+                                {cleanTitle}
+                            </h4>
+                        </div>
+                        {event.location && (
+                            <div className="flex items-center text-gray-500 text-sm bg-gray-50 px-2 py-1 rounded-lg border border-gray-100 w-fit xl:w-auto mt-2 xl:mt-0">
+                                <i className="fa-solid fa-location-dot mr-1 text-gray-400"></i> {event.location}
+                            </div>
+                        )}
+                    </div>
+                    {event.description && <p className="text-gray-600 text-sm mt-2 max-w-2xl">{event.description.replace(/#mandatory/gi, '')}</p>}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [events, setEvents] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [showAddModal, setShowAddModal] = React.useState(false);
+            const [showQRModal, setShowQRModal] = React.useState(false);
+            const [showScheduleModal, setShowScheduleModal] = React.useState(false);
+            
+            // Time State
+            const demoStartTime = new Date('2026-10-24T13:15:00'); // Perfect time to test concurrent 13:30 events
+            const [currentTime, setCurrentTime] = React.useState(demoStartTime);
+            const [isDemoMode, setIsDemoMode] = React.useState(true);
+            const [errorMsg, setErrorMsg] = React.useState(null);
+
+            // API Configuration
+            const API_KEY = 'AIzaSyD7iyyWJJV-obRoUia_BpukiP81Z8K3R9E'; // <--- PASTE YOUR API KEY HERE
+            const CALENDAR_ID = 'd7779ef72a22c25311a5bf976c2f8d9329a7706f4e46dc967fedff57a1007490@group.calendar.google.com';
+
+            React.useEffect(() => {
+                const fetchEvents = async () => {
+                    if (API_KEY === 'YOUR_GOOGLE_API_KEY') {
+                        console.warn("No Google API Key found. Falling back to mock data.");
+                        setEvents(mockEvents);
+                        setLoading(false);
+                        return;
+                    }
+
+                    try {
+                        const timeMin = new Date('2026-10-01T00:00:00Z').toISOString();
+                        const timeMax = new Date('2026-11-30T23:59:59Z').toISOString();
+                        
+                        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?key=${API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+                        
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            const errData = await response.json();
+                            throw new Error(errData.error?.message || `HTTP Error: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        if (data.items) {
+                            const formattedEvents = data.items.map(ev => ({
+                                id: ev.id,
+                                title: ev.summary || 'Untitled',
+                                description: ev.description || '',
+                                location: ev.location || '',
+                                start: ev.start.dateTime || ev.start.date,
+                                end: ev.end.dateTime || ev.end.date
+                            }));
+                            setEvents(formattedEvents);
+                        } else {
+                            setEvents([]);
+                        }
+                    } catch (error) {
+                        console.error("Calendar fetch error:", error);
+                        setErrorMsg(error.message);
+                        setEvents(mockEvents);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchEvents();
+            }, []);
+
+            React.useEffect(() => {
+                const timer = setInterval(() => {
+                    if (!isDemoMode) {
+                        setCurrentTime(new Date());
+                    } else {
+                        setCurrentTime(prev => {
+                            if(prev.getFullYear() !== 2026) return demoStartTime;
+                            return new Date(prev.getTime() + 60000); 
+                        });
+                    }
+                }, 60000);
+                return () => clearInterval(timer);
+            }, [isDemoMode]);
+
+            const toggleDemoMode = () => {
+                if (isDemoMode) {
+                    setCurrentTime(new Date()); // Jump to real time immediately
+                } else {
+                    setCurrentTime(demoStartTime); // Jump to demo time immediately
+                }
+                setIsDemoMode(!isDemoMode);
+            };
+
+            const sortedEvents = [...events].sort((a, b) => new Date(a.start) - new Date(b.start));
+            const upcomingEvents = sortedEvents.filter(e => new Date(e.end || e.start) > currentTime);
+            const nextEvent = upcomingEvents.length > 0 ? upcomingEvents[0] : null;
+            const nextMeal = upcomingEvents.find(e => categorizeEvent(e.title, e.description).type === 'meal');
+            
+            // Group for Full Schedule
+            const groupedEventsByDay = sortedEvents.reduce((acc, event) => {
+                const day = event.start.split('T')[0];
+                if (!acc[day]) acc[day] = [];
+                acc[day].push(event);
+                return acc;
+            }, {});
+
+            // Filter Today's Schedule
+            const todayStr = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
+            const todayEvents = groupedEventsByDay[todayStr] || [];
+            
+            // Apply the new Concurrent Grouping logic to today's events!
+            const todayTimeGroups = groupEventsByStartTime(todayEvents);
+
+            return (
+                <div className="min-h-screen bg-gray-100 pb-20 md:pb-8 relative">
+                    {/* Header */}
+                    <header className="bg-slate-900 text-white shadow-md sticky top-0 z-20">
+                        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+                            <div className="flex items-center space-x-3">
+                                {/* Geometric SVG Logo */}
+                                <svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                    <path d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z" fill="#2b5797" />
+                                    <path d="M15 30 L50 50 L50 90 L15 70 Z" fill="#00a300" />
+                                    <path d="M50 10 L85 30 L50 50 L15 30 Z" fill="#ee1111" />
+                                    <path d="M50 50 L85 70 L50 90 L15 70 Z" fill="#ffc40d" />
+                                </svg>
+                                <div>
+                                    <h1 className="text-xl md:text-2xl font-bold tracking-tight">EMJC Schedule</h1>
+                                    <div className="text-xs text-slate-300 font-medium">
+                                        {formatDateHeader(currentTime)} • {format24Time(currentTime.toISOString())}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex space-x-2">
+                                <button onClick={() => setShowScheduleModal(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Full Schedule">
+                                    <i className="fa-solid fa-calendar-days text-lg"></i>
+                                </button>
+                                <button onClick={() => setShowQRModal(true)} className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Share via QR">
+                                    <i className="fa-solid fa-qrcode text-lg"></i>
+                                </button>
+                                <button onClick={() => setShowAddModal(true)} className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors shadow-sm font-medium flex items-center space-x-2">
+                                    <i className="fa-solid fa-plus"></i>
+                                    <span className="hidden md:inline">Propose</span>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-6xl mx-auto px-4 py-6">
+                        {errorMsg && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 relative shadow-sm">
+                                <strong className="font-bold">API Error: </strong>
+                                <span className="block sm:inline">{errorMsg}</span>
+                                <p className="text-sm mt-1 opacity-80">Falling back to mock schedule data. Please check your API Key and Calendar ID.</p>
+                            </div>
+                        )}
+                        
+                        {loading ? (
+                            <div className="flex justify-center py-20"><i className="fa-solid fa-circle-notch fa-spin text-4xl text-blue-500"></i></div>
+                        ) : (
+                            <div className="w-full">
+                                {/* Top Dashboard Widgets */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                                    {/* What's Next */}
+                                    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                                        <div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Happening Next</div>
+                                        {nextEvent ? (
+                                            <div>
+                                                <div className="flex items-center space-x-2 mb-1">
+                                                    <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">{format24Time(nextEvent.start)}</span>
+                                                    {parseMandatory(nextEvent.title).isMandatory && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">Mandatory</span>}
+                                                </div>
+                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseMandatory(nextEvent.title).cleanTitle}</h3>
+                                                <p className="text-gray-500 text-sm mt-1"><i className="fa-solid fa-location-dot mr-1"></i> {nextEvent.location || 'TBA'}</p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-500 italic">No more events scheduled.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Next Meal */}
+                                    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                                        <div className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex justify-between items-center">
+                                            <span>Next Meal</span>
+                                            <i className="fa-solid fa-utensils"></i>
+                                        </div>
+                                        {nextMeal ? (
+                                            <div>
+                                                <div className="flex items-center space-x-2 mb-1">
+                                                    <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded">{formatEuroDate(nextMeal.start)} at {format24Time(nextMeal.start)}</span>
+                                                </div>
+                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseMandatory(nextMeal.title).cleanTitle}</h3>
+                                                <p className="text-gray-500 text-sm mt-1"><i className="fa-solid fa-location-dot mr-1"></i> {nextMeal.location || 'Dining Hall'}</p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-500 italic">No meals scheduled.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Today's Schedule - WITH CONCURRENT GROUPING */}
+                                <div className="flex justify-between items-end mb-6">
+                                    <h2 className="text-2xl font-bold text-gray-800">Today's Schedule</h2>
+                                    <button onClick={() => setShowScheduleModal(true)} className="text-blue-600 text-sm font-medium hover:underline flex items-center">
+                                        Full Week <i className="fa-solid fa-arrow-right ml-1"></i>
+                                    </button>
+                                </div>
+                                
+                                <div className="space-y-6 pl-2 md:pl-4 border-l-2 border-gray-200 ml-2 md:ml-4 pb-10">
+                                    {todayTimeGroups.length > 0 ? todayTimeGroups.map((group, idx) => {
+                                        // Check if this entire time group is in the past
+                                        const groupPast = group.events.every(e => new Date(e.end || e.start) < currentTime);
+                                        
+                                        return (
+                                            <div key={idx} className="relative ml-4">
+                                                {/* Single Timeline Dot for the concurrent block */}
+                                                <div className={`absolute -left-[27px] md:-left-[35px] top-5 w-4 h-4 bg-white border-4 rounded-full z-10 ${groupPast ? 'border-gray-300' : 'border-blue-500'}`}></div>
+                                                
+                                                {/* Event Cards - Uses CSS Grid to go side-by-side if there are multiple events! */}
+                                                <div className={`grid grid-cols-1 ${group.events.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
+                                                    {group.events.map(event => (
+                                                        <EventCard key={event.id} event={event} currentTime={currentTime} />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    }) : (
+                                        <p className="text-gray-500 italic ml-4 mb-10 bg-gray-50 p-4 rounded-lg border border-gray-100">No events scheduled for today.</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {}
+                    {showAddModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold">Propose Activity</h3>
+                                    <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
+                                        <i className="fa-solid fa-xmark text-xl"></i>
+                                    </button>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-6">
+                                    Create a calendar invite for Bo to review. If accepted, it will be added to the official schedule.
+                                </p>
+                                
+                                <form onSubmit={(e) => e.preventDefault()}>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Activity Title</label>
+                                            <input type="text" id="ev-title" required className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g., Evening Board Games" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                                <input type="date" id="ev-date" required defaultValue="2026-10-24" className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time (24h)</label>
+                                                <input type="time" id="ev-time" required defaultValue="19:30" className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                            <input type="text" id="ev-location" className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g., Room 4" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                            <textarea id="ev-desc" rows="2" className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Brief details..."></textarea>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-6 flex flex-col space-y-3">
+                                        <button onClick={() => {
+                                            const t = document.getElementById('ev-title').value;
+                                            const d = document.getElementById('ev-date').value;
+                                            const tm = document.getElementById('ev-time').value;
+                                            const loc = document.getElementById('ev-location').value;
+                                            const desc = document.getElementById('ev-desc').value;
+                                            if(!t || !d || !tm) return alert('Please fill title, date, and time.');
+                                            
+                                            const startDate = new Date(`${d}T${tm}`).toISOString().replace(/-|:|\.\d\d\d/g,"");
+                                            const endDate = new Date(new Date(`${d}T${tm}`).getTime() + 60*60*1000).toISOString().replace(/-|:|\.\d\d\d/g,"");
+                                            
+                                            const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${startDate}/${endDate}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(loc)}&add=bo@begavetmedglaede.dk`;
+                                            window.open(gCalUrl, '_blank');
+                                        }} className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition flex justify-center items-center">
+                                            <i className="fa-brands fa-google mr-2"></i> Send via Google Calendar
+                                        </button>
+                                        
+                                        <button onClick={() => {
+                                            const t = document.getElementById('ev-title').value;
+                                            const d = document.getElementById('ev-date').value;
+                                            const tm = document.getElementById('ev-time').value;
+                                            const loc = document.getElementById('ev-location').value;
+                                            const desc = document.getElementById('ev-desc').value;
+                                            if(!t || !d || !tm) return alert('Please fill title, date, and time.');
+
+                                            const startDate = new Date(`${d}T${tm}`).toISOString().replace(/-|:|\.\d\d\d/g,"");
+                                            const endDate = new Date(new Date(`${d}T${tm}`).getTime() + 60*60*1000).toISOString().replace(/-|:|\.\d\d\d/g,"");
+
+                                            const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//EMJC Schedule//EN
+BEGIN:VEVENT
+UID:${new Date().getTime()}@emjc
+DTSTAMP:${startDate}
+DTSTART:${startDate}
+DTEND:${endDate}
+SUMMARY:${t}
+DESCRIPTION:${desc}
+LOCATION:${loc}
+ATTENDEE;RSVP=TRUE:mailto:bo@begavetmedglaede.dk
+END:VEVENT
+END:VCALENDAR`;
+                                            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                                            const link = document.createElement('a');
+                                            link.href = window.URL.createObjectURL(blob);
+                                            link.setAttribute('download', 'emjc_proposal.ics');
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }} className="w-full bg-gray-800 text-white font-medium py-2 rounded-lg hover:bg-gray-900 transition flex justify-center items-center">
+                                            <i className="fa-brands fa-apple mr-2"></i> Download Invite (Apple/Outlook)
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showQRModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+                                <div className="flex justify-end mb-2">
+                                    <button onClick={() => setShowQRModal(false)} className="text-gray-400 hover:text-gray-600">
+                                        <i className="fa-solid fa-xmark text-xl"></i>
+                                    </button>
+                                </div>
+                                <h3 className="text-xl font-bold mb-2">Scan to view Schedule</h3>
+                                <p className="text-gray-500 text-sm mb-6">Open the camera on your phone to get this dashboard.</p>
+                                
+                                <div className="bg-gray-100 p-4 rounded-xl inline-block mb-6">
+                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.href)}`} alt="QR Code" className="w-48 h-48 mx-auto mix-blend-multiply" />
+                                </div>
+
+                                <button onClick={() => {
+                                    navigator.clipboard.writeText(window.location.href).catch(() => {
+                                        const el = document.createElement('textarea');
+                                        el.value = window.location.href;
+                                        document.body.appendChild(el);
+                                        el.select();
+                                        document.execCommand('copy');
+                                        document.body.removeChild(el);
+                                    });
+                                    const btn = document.getElementById('copyBtn');
+                                    btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> Copied!';
+                                    setTimeout(() => btn.innerHTML = '<i class="fa-solid fa-link mr-2"></i> Copy Link', 2000);
+                                }} id="copyBtn" className="w-full bg-gray-100 text-gray-800 font-medium py-2 rounded-lg hover:bg-gray-200 transition">
+                                    <i className="fa-solid fa-link mr-2"></i> Copy Link
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Full Schedule Modal */}
+                    {showScheduleModal && (
+                        <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+                            <div className="bg-slate-900 text-white px-4 py-4 flex justify-between items-center shadow-md flex-shrink-0">
+                                <h3 className="text-xl font-bold"><i className="fa-solid fa-calendar-days mr-2"></i> Full Week Schedule</h3>
+                                <button onClick={() => setShowScheduleModal(false)} className="text-gray-300 hover:text-white p-2">
+                                    <i className="fa-solid fa-xmark text-xl"></i>
+                                </button>
+                            </div>
+                            <div className="flex-grow overflow-y-auto p-4 max-w-4xl mx-auto w-full">
+                                <div className="space-y-8 pb-10 mt-4">
+                                    {Object.keys(groupedEventsByDay).map(dateKey => {
+                                        const dayEvents = groupedEventsByDay[dateKey];
+                                        const dayGroups = groupEventsByStartTime(dayEvents);
+                                        
+                                        const isPast = new Date(dateKey) < new Date(currentTime.toISOString().split('T')[0]);
+                                        
+                                        return (
+                                            <div key={dateKey} className={isPast ? "opacity-60" : ""}>
+                                                <h3 className="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4 sticky top-0 bg-gray-100 z-10 pt-2">
+                                                    {formatEuroDateLong(dateKey)}
+                                                </h3>
+                                                <div className="space-y-6 pl-2 md:pl-4 border-l-2 border-gray-200 ml-2 md:ml-4">
+                                                    {dayGroups.map((group, idx) => {
+                                                        const groupPast = group.events.every(e => new Date(e.end || e.start) < currentTime);
+                                                        return (
+                                                            <div key={idx} className="relative ml-4">
+                                                                <div className={`absolute -left-[27px] md:-left-[35px] top-5 w-4 h-4 bg-white border-4 rounded-full z-10 ${groupPast ? 'border-gray-300' : 'border-blue-500'}`}></div>
+                                                                <div className={`grid grid-cols-1 ${group.events.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
+                                                                    {group.events.map(event => (
+                                                                        <EventCard key={event.id} event={event} currentTime={currentTime} />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Demo Toggle Button */}
+                    <button 
+                        onClick={toggleDemoMode}
+                        className={`fixed bottom-4 right-4 text-xs px-4 py-2 rounded-full shadow-lg transition z-40 font-bold ${isDemoMode ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-800 text-white hover:bg-black"}`}
+                    >
+                        {isDemoMode ? "Exit Time Machine" : "Enter Demo Mode"}
+                    </button>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
