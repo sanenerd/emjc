@@ -68,14 +68,19 @@
             return { type: 'default', icon: 'fa-calendar-day', color: 'text-gray-400' };
         };
 
-        const parseMandatory = (title) => {
-            if (!title) return { isMandatory: false, cleanTitle: 'Untitled Event' };
-            const isMandatory = title.toLowerCase().includes('#mandatory');
-            const cleanTitle = title.replace(/#mandatory/gi, '').trim();
-            return { isMandatory, cleanTitle };
+        // Extracts ANY #hashtag from the title into an array of labels
+        const parseTags = (title) => {
+            if (!title) return { tags: [], cleanTitle: 'Untitled Event' };
+            const tags = [];
+            const cleanTitle = title.replace(/#\S+/g, (match) => {
+                // Remove the # and uppercase it (e.g., #optional -> OPTIONAL)
+                tags.push(match.substring(1).toUpperCase().replace(/_/g, ' '));
+                return ''; 
+            }).replace(/\s{2,}/g, ' ').trim(); // Cleanup double spaces
+            
+            return { tags, cleanTitle };
         };
 
-        // Groups sequential events that share the exact same start time
         const groupEventsByStartTime = (eventList) => {
             if (!eventList || eventList.length === 0) return [];
             const groups = [];
@@ -99,14 +104,14 @@
             { id: '2', title: 'Welcome Dinner #mandatory', description: 'First meal together.', location: 'Dining Hall', start: '2026-10-23T19:00:00', end: '2026-10-23T20:30:00' },
             { id: '3', title: 'Breakfast', description: 'Standard breakfast buffet.', location: 'Dining Hall', start: '2026-10-24T08:00:00', end: '2026-10-24T09:00:00' },
             { id: '4', title: 'Camp Meeting #mandatory', description: 'Morning alignment.', location: 'Room 2', start: '2026-10-24T13:30:00', end: '2026-10-24T14:00:00' },
-            { id: '4b', title: 'Baking Workshop', description: 'Bake cookies (12 people).', location: 'Kitchen 2', start: '2026-10-24T13:30:00', end: '2026-10-24T17:00:00' },
-            { id: '5', title: 'Blood on the Clock Tower Intro', description: 'Come introduce your favorite games.', location: 'Room 4', start: '2026-10-24T14:00:00', end: '2026-10-24T17:30:00' },
+            { id: '4b', title: 'Baking Workshop #optional #tasty', description: 'Bake cookies (12 people).', location: 'Kitchen 2', start: '2026-10-24T13:30:00', end: '2026-10-24T17:00:00' },
+            { id: '5', title: 'Blood on the Clock Tower Intro #games', description: 'Come introduce your favorite games.', location: 'Room 4', start: '2026-10-24T14:00:00', end: '2026-10-24T17:30:00' },
             { id: '6', title: 'Dinner', description: '', location: 'Dining Hall', start: '2026-10-24T18:30:00', end: '2026-10-24T20:00:00' },
-            { id: '7', title: 'Poetry night', description: 'Share your verses.', location: 'Upstairs', start: '2026-10-24T20:00:00', end: '2026-10-24T23:00:00' }
+            { id: '7', title: 'Poetry night #chill #adults', description: 'Share your verses.', location: 'Upstairs', start: '2026-10-24T20:00:00', end: '2026-10-24T23:00:00' }
         ];
 
         const EventCard = ({ event, currentTime }) => {
-            const { isMandatory, cleanTitle } = parseMandatory(event.title);
+            const { tags, cleanTitle } = parseTags(event.title);
             const category = categorizeEvent(event.title, event.description);
             const eventPast = new Date(event.end || event.start) < currentTime;
             
@@ -118,7 +123,11 @@
                                 <span className="font-mono font-bold text-gray-700 text-sm">
                                     {format24Time(event.start)} {event.end ? `- ${format24Time(event.end)}` : ''}
                                 </span>
-                                {isMandatory && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider">Mandatory</span>}
+                                {tags.map(tag => (
+                                    <span key={tag} className={`text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider ${tag === 'MANDATORY' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                        {tag}
+                                    </span>
+                                ))}
                                 {eventPast && <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-0.5 rounded tracking-wider">DONE</span>}
                             </div>
                             <h4 className="text-lg font-bold text-gray-900 flex items-center">
@@ -132,7 +141,7 @@
                             </div>
                         )}
                     </div>
-                    {event.description && <p className="text-gray-600 text-sm mt-2 max-w-2xl">{event.description.replace(/#mandatory/gi, '')}</p>}
+                    {event.description && <p className="text-gray-600 text-sm mt-2 max-w-2xl">{event.description.replace(/#\S+/g, '').trim()}</p>}
                 </div>
             );
         };
@@ -144,14 +153,12 @@
             const [showQRModal, setShowQRModal] = React.useState(false);
             const [showScheduleModal, setShowScheduleModal] = React.useState(false);
             
-            // Time State
-            const demoStartTime = new Date('2026-10-24T13:15:00'); // Perfect time to test concurrent 13:30 events
+            const demoStartTime = new Date('2026-10-24T13:15:00'); 
             const [currentTime, setCurrentTime] = React.useState(demoStartTime);
             const [isDemoMode, setIsDemoMode] = React.useState(true);
             const [errorMsg, setErrorMsg] = React.useState(null);
 
-            // API Configuration
-            const API_KEY = 'AIzaSyD7iyyWJJV-obRoUia_BpukiP81Z8K3R9E'; // <--- PASTE YOUR API KEY HERE
+            const API_KEY = 'YOUR_GOOGLE_API_KEY'; // <--- PASTE YOUR API KEY HERE
             const CALENDAR_ID = 'd7779ef72a22c25311a5bf976c2f8d9329a7706f4e46dc967fedff57a1007490@group.calendar.google.com';
 
             React.useEffect(() => {
@@ -203,25 +210,16 @@
 
             React.useEffect(() => {
                 const timer = setInterval(() => {
-                    if (!isDemoMode) {
-                        setCurrentTime(new Date());
-                    } else {
-                        setCurrentTime(prev => {
-                            if(prev.getFullYear() !== 2026) return demoStartTime;
-                            return new Date(prev.getTime() + 60000); 
-                        });
-                    }
+                    if (!isDemoMode) setCurrentTime(new Date());
+                    else setCurrentTime(prev => new Date(prev.getTime() + 60000)); 
                 }, 60000);
                 return () => clearInterval(timer);
             }, [isDemoMode]);
 
             const toggleDemoMode = () => {
-                if (isDemoMode) {
-                    setCurrentTime(new Date()); // Jump to real time immediately
-                } else {
-                    setCurrentTime(demoStartTime); // Jump to demo time immediately
-                }
-                setIsDemoMode(!isDemoMode);
+                const newMode = !isDemoMode;
+                setIsDemoMode(newMode);
+                setCurrentTime(newMode ? demoStartTime : new Date());
             };
 
             const sortedEvents = [...events].sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -229,7 +227,6 @@
             const nextEvent = upcomingEvents.length > 0 ? upcomingEvents[0] : null;
             const nextMeal = upcomingEvents.find(e => categorizeEvent(e.title, e.description).type === 'meal');
             
-            // Group for Full Schedule
             const groupedEventsByDay = sortedEvents.reduce((acc, event) => {
                 const day = event.start.split('T')[0];
                 if (!acc[day]) acc[day] = [];
@@ -237,20 +234,15 @@
                 return acc;
             }, {});
 
-            // Filter Today's Schedule
             const todayStr = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
             const todayEvents = groupedEventsByDay[todayStr] || [];
-            
-            // Apply the new Concurrent Grouping logic to today's events!
             const todayTimeGroups = groupEventsByStartTime(todayEvents);
 
             return (
                 <div className="min-h-screen bg-gray-100 pb-20 md:pb-8 relative">
-                    {/* Header */}
                     <header className="bg-slate-900 text-white shadow-md sticky top-0 z-20">
                         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
                             <div className="flex items-center space-x-3">
-                                {/* Geometric SVG Logo */}
                                 <svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                     <path d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z" fill="#2b5797" />
                                     <path d="M15 30 L50 50 L50 90 L15 70 Z" fill="#00a300" />
@@ -279,7 +271,6 @@
                         </div>
                     </header>
 
-                    {/* Main Content */}
                     <main className="max-w-6xl mx-auto px-4 py-6">
                         {errorMsg && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 relative shadow-sm">
@@ -290,21 +281,21 @@
                         )}
                         
                         {loading ? (
-                            <div className="flex justify-center py-20"><i className="fa-solid fa-circle-notch fa-spin text-4xl text-blue-500"></i></div>
+                            <div className="flex justify-center py-20"><div className="w-full text-center"><i className="fa-solid fa-circle-notch fa-spin text-4xl text-blue-500"></i></div></div>
                         ) : (
                             <div className="w-full">
-                                {/* Top Dashboard Widgets */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                                    {/* What's Next */}
                                     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                                         <div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Happening Next</div>
                                         {nextEvent ? (
                                             <div>
                                                 <div className="flex items-center space-x-2 mb-1">
                                                     <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">{format24Time(nextEvent.start)}</span>
-                                                    {parseMandatory(nextEvent.title).isMandatory && <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">Mandatory</span>}
+                                                    {parseTags(nextEvent.title).tags.map(tag => (
+                                                        <span key={tag} className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider ${tag === 'MANDATORY' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>{tag}</span>
+                                                    ))}
                                                 </div>
-                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseMandatory(nextEvent.title).cleanTitle}</h3>
+                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseTags(nextEvent.title).cleanTitle}</h3>
                                                 <p className="text-gray-500 text-sm mt-1"><i className="fa-solid fa-location-dot mr-1"></i> {nextEvent.location || 'TBA'}</p>
                                             </div>
                                         ) : (
@@ -312,7 +303,6 @@
                                         )}
                                     </div>
 
-                                    {/* Next Meal */}
                                     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
                                         <div className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex justify-between items-center">
                                             <span>Next Meal</span>
@@ -323,7 +313,7 @@
                                                 <div className="flex items-center space-x-2 mb-1">
                                                     <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded">{formatEuroDate(nextMeal.start)} at {format24Time(nextMeal.start)}</span>
                                                 </div>
-                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseMandatory(nextMeal.title).cleanTitle}</h3>
+                                                <h3 className="font-bold text-lg text-gray-900 leading-tight">{parseTags(nextMeal.title).cleanTitle}</h3>
                                                 <p className="text-gray-500 text-sm mt-1"><i className="fa-solid fa-location-dot mr-1"></i> {nextMeal.location || 'Dining Hall'}</p>
                                             </div>
                                         ) : (
@@ -332,7 +322,6 @@
                                     </div>
                                 </div>
 
-                                {/* Today's Schedule - WITH CONCURRENT GROUPING */}
                                 <div className="flex justify-between items-end mb-6">
                                     <h2 className="text-2xl font-bold text-gray-800">Today's Schedule</h2>
                                     <button onClick={() => setShowScheduleModal(true)} className="text-blue-600 text-sm font-medium hover:underline flex items-center">
@@ -342,15 +331,10 @@
                                 
                                 <div className="space-y-6 pl-2 md:pl-4 border-l-2 border-gray-200 ml-2 md:ml-4 pb-10">
                                     {todayTimeGroups.length > 0 ? todayTimeGroups.map((group, idx) => {
-                                        // Check if this entire time group is in the past
                                         const groupPast = group.events.every(e => new Date(e.end || e.start) < currentTime);
-                                        
                                         return (
                                             <div key={idx} className="relative ml-4">
-                                                {/* Single Timeline Dot for the concurrent block */}
                                                 <div className={`absolute -left-[27px] md:-left-[35px] top-5 w-4 h-4 bg-white border-4 rounded-full z-10 ${groupPast ? 'border-gray-300' : 'border-blue-500'}`}></div>
-                                                
-                                                {/* Event Cards - Uses CSS Grid to go side-by-side if there are multiple events! */}
                                                 <div className={`grid grid-cols-1 ${group.events.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
                                                     {group.events.map(event => (
                                                         <EventCard key={event.id} event={event} currentTime={currentTime} />
@@ -359,14 +343,13 @@
                                             </div>
                                         );
                                     }) : (
-                                        <p className="text-gray-500 italic ml-4 mb-10 bg-gray-50 p-4 rounded-lg border border-gray-100">No events scheduled for today.</p>
+                                        <div className="w-full"><p className="text-gray-500 italic ml-4 mb-10 bg-gray-50 p-4 rounded-lg border border-gray-100">No events scheduled for today.</p></div>
                                     )}
                                 </div>
                             </div>
                         )}
                     </main>
 
-                    {}
                     {showAddModal && (
                         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
@@ -377,14 +360,14 @@
                                     </button>
                                 </div>
                                 <p className="text-sm text-gray-600 mb-6">
-                                    Create a calendar invite for Bo to review. If accepted, it will be added to the official schedule.
+                                    Send a calendar invite to the official camp schedule. Once an admin accepts it, it will instantly appear on the dashboard. Use #hashtags in the title to add labels (e.g. #optional, #chill).
                                 </p>
                                 
                                 <form onSubmit={(e) => e.preventDefault()}>
                                     <div className="space-y-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Activity Title</label>
-                                            <input type="text" id="ev-title" required className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g., Evening Board Games" />
+                                            <input type="text" id="ev-title" required className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g., Evening Board Games #chill" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
@@ -418,7 +401,7 @@
                                             const startDate = new Date(`${d}T${tm}`).toISOString().replace(/-|:|\.\d\d\d/g,"");
                                             const endDate = new Date(new Date(`${d}T${tm}`).getTime() + 60*60*1000).toISOString().replace(/-|:|\.\d\d\d/g,"");
                                             
-                                            const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${startDate}/${endDate}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(loc)}&add=bo@begavetmedglaede.dk`;
+                                            const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${startDate}/${endDate}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(loc)}&add=${encodeURIComponent(CALENDAR_ID)}`;
                                             window.open(gCalUrl, '_blank');
                                         }} className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition flex justify-center items-center">
                                             <i className="fa-brands fa-google mr-2"></i> Send via Google Calendar
@@ -446,7 +429,7 @@ DTEND:${endDate}
 SUMMARY:${t}
 DESCRIPTION:${desc}
 LOCATION:${loc}
-ATTENDEE;RSVP=TRUE:mailto:bo@begavetmedglaede.dk
+ATTENDEE;RSVP=TRUE:mailto:${CALENDAR_ID}
 END:VEVENT
 END:VCALENDAR`;
                                             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
@@ -499,7 +482,6 @@ END:VCALENDAR`;
                         </div>
                     )}
 
-                    {/* Full Schedule Modal */}
                     {showScheduleModal && (
                         <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
                             <div className="bg-slate-900 text-white px-4 py-4 flex justify-between items-center shadow-md flex-shrink-0">
@@ -513,7 +495,6 @@ END:VCALENDAR`;
                                     {Object.keys(groupedEventsByDay).map(dateKey => {
                                         const dayEvents = groupedEventsByDay[dateKey];
                                         const dayGroups = groupEventsByStartTime(dayEvents);
-                                        
                                         const isPast = new Date(dateKey) < new Date(currentTime.toISOString().split('T')[0]);
                                         
                                         return (
@@ -544,7 +525,6 @@ END:VCALENDAR`;
                         </div>
                     )}
 
-                    {/* Demo Toggle Button */}
                     <button 
                         onClick={toggleDemoMode}
                         className={`fixed bottom-4 right-4 text-xs px-4 py-2 rounded-full shadow-lg transition z-40 font-bold ${isDemoMode ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-800 text-white hover:bg-black"}`}
@@ -555,7 +535,7 @@ END:VCALENDAR`;
             );
         };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        ReactDOM.render(<div className="w-full"><App /></div>, document.getElementById('root'));
     </script>
 </body>
 </html>
