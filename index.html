@@ -157,7 +157,6 @@
             const [currentTime, setCurrentTime] = React.useState(demoStartTime);
             const [isDemoMode, setIsDemoMode] = React.useState(true);
             const [errorMsg, setErrorMsg] = React.useState(null);
- 
             const API_KEY = 'AIzaSyD7iyyWJJV-obRoUia_BpukiP81Z8K3R9E'; // <--- PASTE YOUR API KEY HERE
             const CALENDAR_ID = 'd7779ef72a22c25311a5bf976c2f8d9329a7706f4e46dc967fedff57a1007490@group.calendar.google.com';
 
@@ -185,7 +184,21 @@
                         const data = await response.json();
                         
                         if (data.items) {
-                            const formattedEvents = data.items.map(ev => ({
+                            // Filter out unconfirmed invitations
+                            const confirmedItems = data.items.filter(ev => {
+                                if (ev.status === 'cancelled') return false;
+                                if (ev.attendees) {
+                                    // Find the attendee profile that represents this calendar
+                                    const selfAttendee = ev.attendees.find(a => a.self);
+                                    // If the calendar hasn't accepted the invite yet, hide it
+                                    if (selfAttendee && selfAttendee.responseStatus !== 'accepted') {
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            });
+
+                            const formattedEvents = confirmedItems.map(ev => ({
                                 id: ev.id,
                                 title: ev.summary || 'Untitled',
                                 description: ev.description || '',
