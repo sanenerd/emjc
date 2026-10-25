@@ -73,10 +73,9 @@
             if (!title) return { tags: [], cleanTitle: 'Untitled Event' };
             const tags = [];
             const cleanTitle = title.replace(/#\S+/g, (match) => {
-                // Remove the # and uppercase it (e.g., #optional -> OPTIONAL)
                 tags.push(match.substring(1).toUpperCase().replace(/_/g, ' '));
                 return ''; 
-            }).replace(/\s{2,}/g, ' ').trim(); // Cleanup double spaces
+            }).replace(/\s{2,}/g, ' ').trim(); 
             
             return { tags, cleanTitle };
         };
@@ -154,10 +153,12 @@
             const [showScheduleModal, setShowScheduleModal] = React.useState(false);
             
             const demoStartTime = new Date('2026-10-24T13:15:00'); 
-            const [currentTime, setCurrentTime] = React.useState(demoStartTime);
+            
             const [isDemoMode, setIsDemoMode] = React.useState(false);
+            const [currentTime, setCurrentTime] = React.useState(new Date());
             const [errorMsg, setErrorMsg] = React.useState(null);
-            const API_KEY = 'AIzaSyD7iyyWJJV-obRoUia_BpukiP81Z8K3R9E'; // <--- PASTE YOUR API KEY HERE
+
+            const API_KEY = 'AIzaSyD7iyyWJJV-obRoUia_BpukiP81Z8K3R9E'; 
             const CALENDAR_ID = 'd7779ef72a22c25311a5bf976c2f8d9329a7706f4e46dc967fedff57a1007490@group.calendar.google.com';
 
             React.useEffect(() => {
@@ -188,9 +189,7 @@
                             const confirmedItems = data.items.filter(ev => {
                                 if (ev.status === 'cancelled') return false;
                                 if (ev.attendees) {
-                                    // Find the attendee profile that represents this calendar
                                     const selfAttendee = ev.attendees.find(a => a.self);
-                                    // If the calendar hasn't accepted the invite yet, hide it
                                     if (selfAttendee && selfAttendee.responseStatus !== 'accepted') {
                                         return false;
                                     }
@@ -256,12 +255,8 @@
                     <header className="bg-slate-900 text-white shadow-md sticky top-0 z-20">
                         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
                             <div className="flex items-center space-x-3">
-                                <svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                    <path d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z" fill="#2b5797" />
-                                    <path d="M15 30 L50 50 L50 90 L15 70 Z" fill="#00a300" />
-                                    <path d="M50 10 L85 30 L50 50 L15 30 Z" fill="#ee1111" />
-                                    <path d="M50 50 L85 70 L50 90 L15 70 Z" fill="#ffc40d" />
-                                </svg>
+                                {/* Embedded specific Logo.svg file using img tag */}
+                                <img src="Logo.svg" alt="EMJC Logo" width="42" height="42" className="flex-shrink-0" />
                                 <div>
                                     <h1 className="text-xl md:text-2xl font-bold tracking-tight">EMJC Schedule</h1>
                                     <div className="text-xs text-slate-300 font-medium">
